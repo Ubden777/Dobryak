@@ -13,6 +13,7 @@ class DbConfig:
 @dataclass
 class TgBot:
     token: str
+    payment_provider_token: str
 
 @dataclass
 class Config:
@@ -24,7 +25,8 @@ def load_config(path: str | None = ".env") -> Config:
 
     return Config(
         tg_bot=TgBot(
-            token=os.getenv("BOT_TOKEN")
+            token=os.getenv("BOT_TOKEN"),
+            payment_provider_token=os.getenv("PAYMENT_PROVIDER_TOKEN")
         ),
         db=DbConfig(
             host=os.getenv("DB_HOST"),
