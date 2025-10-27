@@ -84,13 +84,22 @@ async def update_user_balance(pool: asyncpg.Pool, user_id: int, amount_stars: De
     async with pool.acquire() as connection:
         await connection.execute(sql, amount_stars, user_id)
 
-async def add_transaction(pool: asyncpg.Pool, user_id: int, type: str, status: str, amount_stars: Optional[Decimal] = None, amount_ton: Optional[Decimal] = None, tx_hash: Optional[str] = None):
+async def add_transaction(
+    pool: asyncpg.Pool,
+    user_id: int,
+    type: str,
+    status: str,
+    amount_stars: Optional[Decimal] = None,
+    amount_ton: Optional[Decimal] = None,
+    tx_hash: Optional[str] = None,
+    telegram_charge_id: Optional[str] = None
+):
     """
     Логирует транзакцию.
     """
     sql = """
-        INSERT INTO transactions (user_id, type, status, amount_stars, amount_ton, tx_hash)
-        VALUES ($1, $2, $3, $4, $5, $6);
+        INSERT INTO transactions (user_id, type, status, amount_stars, amount_ton, tx_hash, telegram_charge_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7);
     """
     async with pool.acquire() as connection:
-        await connection.execute(sql, user_id, type, status, amount_stars, amount_ton, tx_hash)
+        await connection.execute(sql, user_id, type, status, amount_stars, amount_ton, tx_hash, telegram_charge_id)

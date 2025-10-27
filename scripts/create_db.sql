@@ -1,5 +1,6 @@
 -- Файл для создания таблиц БД "Добряк Бот"
--- Версия: 1.0
+-- Версия: 1.1
+-- Добавлено поле telegram_charge_id для идемпотентности платежей
 
 -- Таблица пользователей
 CREATE TABLE IF NOT EXISTS users (
@@ -36,7 +37,7 @@ CREATE TABLE IF NOT EXISTS executions (
     status TEXT DEFAULT 'pending_hold', -- ('pending_hold', 'paid', 'failed_unsubscribed')
     payout_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    UNIQUE(task_id, worker_user_id) -- Один исполнитель может выполнить задание только один раз
+    UNIQUE(task_id, worker_user_id) -- Гарантия, что один исполнитель выполняет задание только один раз
 );
 
 -- Таблица транзакций (для логов и заявок на вывод)
@@ -48,6 +49,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     amount_ton NUMERIC(18, 9),
     tx_hash TEXT,
     status TEXT NOT NULL, -- ('pending', 'completed', 'failed')
+    telegram_charge_id TEXT UNIQUE, -- Уникальный ID платежа от Telegram для идемпотентности
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 

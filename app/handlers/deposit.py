@@ -71,11 +71,35 @@ async def pre_checkout_query(pre_checkout_q: PreCheckoutQuery, bot: Bot):
     await bot.answer_pre_checkout_query(pre_checkout_q.id, ok=True)
 
 
+import logging
+
+# ...
+
 @deposit_router.message(F.successful_payment)
 async def successful_payment(message: Message, pool: asyncpg.Pool):
     star_amount = message.successful_payment.total_amount
+    charge_id = message.successful_payment.telegram_payment_charge_id
+    user_id = message.from_user.id
 
-    await update_user_balance(pool, message.from_user.id, star_amount)
-    await add_transaction(pool, message.from_user.id, 'deposit_stars', 'completed', amount_stars=star_amount)
+    try:
+        # Используем транзакцию, чтобы обе операции были атомарны
+        async with pool.acquire() as conn:
+            async with conn.transaction():
+                await add_transaction(
+                    conn,
+                    user_id,
+                    'deposit_stars',
+                    'completed',
+                    amount_stars=star_amount,
+                    telegram_charge_id=charge_id
+                )
+                await update_user_balance(conn, user_id, star_amount)
 
-    await message.answer(f"✅ Успешно! Ваш баланс пополнен на {star_amount} ⭐️.")
+        await message.answer(f"✅ Успешно! Ваш баланс пополнен на {star_amount} ⭐️.")
+
+    except asyncpg.exceptions.UniqueViolationError:
+        logging.warning(f"Attempted to double-process payment with charge_id: {charge_id}")
+        await message.answer("Этот платеж уже был обработан.")
+    except Exception as e:
+        logging.error(f"Error processing payment for user {user_id} with charge_id {charge_id}: {e}")
+        await message.answer("Произошла ошибка при обработке вашего платежа. Пожалуйста, свяжитесь с поддержкой.")

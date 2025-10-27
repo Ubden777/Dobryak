@@ -1,5 +1,6 @@
 import asyncpg
 import re
+import logging
 from decimal import Decimal
 from aiogram import Router, F, Bot, types
 from aiogram.types import CallbackQuery, Message, LabeledPrice, InlineKeyboardMarkup, InlineKeyboardButton
@@ -12,6 +13,8 @@ from app.keyboards.onboarding import get_main_menu_keyboard # Для возвр�
 from app.db.queries import get_user_tasks, get_user, update_user_balance, add_transaction, add_task
 
 create_task_router = Router()
+
+# ... (Код до Шага 6 без изменений) ...
 
 # --- UTILS ---
 async def cancel_and_clear_state(message: Message, state: FSMContext):
@@ -182,7 +185,6 @@ async def process_amount(message: Message, state: FSMContext, pool: asyncpg.Pool
     else:
         needed = final_payment - user['balance_stars']
         text += f"\n\nНедостаточно средств. Вам не хватает {needed} ⭐️."
-        # Здесь будет логика с доплатой, пока что просто отмена
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
              [InlineKeyboardButton(text="➕ Пополнить баланс", callback_data="buy_stars")],
              [InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_task_creation")]
@@ -195,27 +197,35 @@ async def process_payment_and_create_task(callback: CallbackQuery, state: FSMCon
     data = await state.get_data()
     user_id = callback.from_user.id
 
-    # Двойная проверка баланса
-    user = await get_user(pool, user_id)
-    if user['balance_stars'] < data['final_payment']:
-        await callback.answer("На вашем балансе недостаточно средств.", show_alert=True)
-        return
-
-    # Списание и создание
     async with pool.acquire() as conn:
+        # Начинаем транзакцию
         async with conn.transaction():
-            await update_user_balance(conn, user_id, -data['final_payment'])
-            await add_transaction(conn, user_id, 'commission', 'completed', amount_stars=data['final_payment'] - data['task_budget'])
-            await add_task(
-                pool=conn,
-                owner_user_id=user_id,
-                target_url=data['target_url'],
-                cost_per_execution=data['cost_per_execution'],
-                executions_needed=data['executions_needed'],
-                task_budget_stars=data['task_budget']
-            )
+            try:
+                # Блокируем строку пользователя для предотвращения гонок
+                user = await conn.fetchrow("SELECT balance_stars FROM users WHERE user_id = $1 FOR UPDATE;", user_id)
+
+                if user['balance_stars'] < data['final_payment']:
+                    await callback.answer("На вашем балансе недостаточно средств. Возможно, вы совершили другую операцию.", show_alert=True)
+                    return # Транзакция автоматически откатится
+
+                # Все операции внутри транзакции
+                await update_user_balance(conn, user_id, -data['final_payment'])
+                await add_transaction(conn, user_id, 'commission', 'completed', amount_stars=data['final_payment'] - data['task_budget'])
+                await add_task(
+                    pool=conn,
+                    owner_user_id=user_id,
+                    target_url=data['target_url'],
+                    cost_per_execution=data['cost_per_execution'],
+                    executions_needed=data['executions_needed'],
+                    task_budget_stars=data['task_budget']
+                )
+
+            except Exception as e:
+                logging.error(f"Failed to create task for user {user_id} due to: {e}")
+                await callback.answer("Произошла ошибка при создании задания. Попробуйте снова.", show_alert=True)
+                # Транзакция автоматически откатится
+                return
 
     await state.clear()
     await callback.message.edit_text("✅ <b>Задание успешно создано и оплачено!</b>")
-    # Возвращаем в меню "Мои задания"
     await tasks_menu(callback, pool)
