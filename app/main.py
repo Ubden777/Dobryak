@@ -9,7 +9,9 @@ from app.config.config import Config, load_config
 from app.handlers.onboarding import onboarding_router
 from app.handlers.deposit import deposit_router
 from app.handlers.create_task import create_task_router
+from app.handlers.execute_task import execute_task_router
 from app.keyboards.onboarding import get_main_menu_keyboard
+from app.scheduler import setup_scheduler
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +39,10 @@ async def main():
     bot = Bot(token=config.tg_bot.token, parse_mode="HTML")
     dp = Dispatcher(storage=storage, pool=pool, config=config)
 
+    # Настраиваем и запускаем планировщик
+    scheduler = setup_scheduler(bot, pool)
+    scheduler.start()
+
     # Регистрируем "глобальный" обработчик для кнопки "Назад"
     dp.callback_query.register(back_to_main_menu, F.data == "main_menu")
 
@@ -44,6 +50,7 @@ async def main():
     dp.include_router(onboarding_router)
     dp.include_router(deposit_router)
     dp.include_router(create_task_router)
+    dp.include_router(execute_task_router)
 
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)

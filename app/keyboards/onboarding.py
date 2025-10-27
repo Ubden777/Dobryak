@@ -15,9 +15,14 @@ def get_main_menu_keyboard() -> InlineKeyboardMarkup:
     Возвращает клавиатуру главного меню.
     """
     buttons = [
-        [InlineKeyboardButton(text="🎯 Задания", callback_data="tasks")],
+        [
+            InlineKeyboardButton(text="💪 Приступить к заданиям", callback_data="execute_tasks"),
+            InlineKeyboardButton(text="📢 Мои задания", callback_data="tasks")
+        ],
         [InlineKeyboardButton(text="⭐️ Звезды", callback_data="stars")],
-        [InlineKeyboardButton(text="👤 Профиль", callback_data="profile")],
-        [InlineKeyboardButton(text="👥 Рефералы", callback_data="referrals")]
+        [
+            InlineKeyboardButton(text="👤 Профиль", callback_data="profile"),
+            InlineKeyboardButton(text="👥 Рефералы", callback_data="referrals")
+        ]
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
